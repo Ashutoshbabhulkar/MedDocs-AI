@@ -125,8 +125,110 @@ const PROCEDURE_CLINICAL_PROFILES: Record<string, {
       "Scrotal support/tight briefs to prevent scrotal hematoma.",
       "Tab. Aceclofenac 100mg + Paracetamol 325mg BD for 5 days."
     ]
+  },
+  'Tympanoplasty (Type 1)': {
+    risks: [
+      "Graft failure / perforation recurrence (tympanic membrane fails to heal, up to 10-15% risk)",
+      "Conductive or sensorineural hearing loss (due to ossicular damage or inner ear trauma)",
+      "Taste disturbance or numbness on the side of the tongue (due to chorda tympani nerve damage)",
+      "Facial nerve injury leading to temporary or permanent facial paralysis (rare, <0.5% risk)",
+      "Postoperative vertigo (dizziness) or worsening of tinnitus (ringing in the ear)"
+    ],
+    benefits: [
+      "Successful closure of the eardrum perforation",
+      "Prevention of recurrent middle ear discharge and infections",
+      "Improvement or stabilization of conductive hearing levels"
+    ],
+    alternatives: [
+      "Conservative management (keeping the ear dry, using earplugs during bathing)",
+      "Hearing aid for hearing rehabilitation (if perforation is stable and dry)",
+      "Antibiotic ear drops for acute episodes of discharge"
+    ],
+    operativeSteps: [
+      "Postauricular incision made. Temporalis fascia graft harvested and prepared.",
+      "External auditory canal skin incised and tympanomeatal flap elevated to expose the tympanic cavity.",
+      "Perforation margins freshened. Middle ear ossicles inspected and found to be mobile and intact.",
+      "Graft placed under the tympanic membrane remnant using underlay technique.",
+      "Tympanomeatal flap repositioned. Gelfoam packed in external canal. Postauricular wound closed."
+    ],
+    postOpOrders: [
+      "Keep postauricular dressing clean and dry. Do not blow nose forcefully.",
+      "Sneeze with mouth open to avoid air pressure build-up in the middle ear.",
+      "Tab. Amoxicillin-Clavulanate 625mg BD for 5 days.",
+      "Tab. Paracetamol 650mg TDS as needed for pain.",
+      "Avoid water entry into the ear; place a cotton ball saturated with Vaseline in the canal when bathing."
+    ]
+  },
+  'Total Knee Arthroplasty (Knee Replacement)': {
+    risks: [
+      "Deep joint prosthetic infection (may require long-term IV antibiotics and revision surgery)",
+      "Deep vein thrombosis (DVT) or life-threatening pulmonary embolism (blood clots in legs/lungs)",
+      "Joint stiffness or restricted range of motion requiring manipulation under anaesthesia",
+      "Common peroneal nerve injury leading to foot drop (temporary or permanent)",
+      "Loosening or wear of the prosthesis over time, requiring revision surgery",
+      "Persistent pain or stiffness in the knee joint post-surgery"
+    ],
+    benefits: [
+      "Significant and long-term relief from chronic arthritic knee pain",
+      "Improvement in joint mobility, walking distance, and general quality of life",
+      "Correction of varus (bow-legged) or valgus (knock-kneed) deformities"
+    ],
+    alternatives: [
+      "Non-surgical management (weight loss, physiotherapy, knee bracing, NSAID painkillers)",
+      "Intra-articular steroid or hyaluronic acid injections for temporary relief",
+      "Arthroscopic joint debridement (palliative, not corrective for severe osteoarthritis)"
+    ],
+    operativeSteps: [
+      "Anterior midline skin incision made. Medial parapatellar arthrotomy performed to expose the knee joint.",
+      "Osteophytes cleared. Damaged cartilage and bone removed from distal femur and proximal tibia using precision cutting jigs.",
+      "Sizing confirmed. Patella prepared. Trial components placed and joint range of motion and stability verified.",
+      "Femoral and tibial components cemented using bone cement. Polyethylene insert clicked in place.",
+      "Joint thoroughly lavaged. Wound closed in layers over a drain. Sterile compression dressing applied."
+    ],
+    postOpOrders: [
+      "NPO until recovery from anaesthesia. Check vitals and distal pulses every hour.",
+      "Strict DVT prophylaxis: Inj. Clexane 40mg SC OD (start 12 hours post-op) & DVT pump.",
+      "Physiotherapy: Active ankle pumps immediately. CPM (Continuous Passive Motion) starting tomorrow.",
+      "Inj. Piperacillin-Tazobactam 4.5g IV TDS for 24 hours.",
+      "Inj. Tramadol 50mg IV TDS + Tab. Ultracet SOS for breakthrough pain."
+    ]
+  },
+  'Lower Segment Cesarean Section (LSCS)': {
+    risks: [
+      "Postpartum Hemorrhage (PPH, severe bleeding potentially requiring blood transfusion or hysterectomy)",
+      "Accidental injury to maternal bladder, ureters, or bowel during surgical dissection",
+      "Fetal injury (accidental minor skin laceration during uterine incision)",
+      "Uterine scar rupture or abnormal placental attachment (e.g. placenta accreta) in future pregnancies",
+      "Wound infection, hematoma, or endometritis (uterine cavity infection)",
+      "Neonatal respiratory distress (transient tachypnea of the newborn)"
+    ],
+    benefits: [
+      "Safe and controlled delivery of the fetus when vaginal birth is hazardous",
+      "Immediate resolution of maternal or fetal distress during labor",
+      "Prevention of birth trauma and complications from abnormal presentation (breech, transverse)"
+    ],
+    alternatives: [
+      "Vaginal delivery (only if presentation is cephalic, maternal-fetal status is normal, and there are no contraindications)",
+      "Trial of labor after cesarean (TOLAC) (only if criteria are met under strict emergency backup)"
+    ],
+    operativeSteps: [
+      "Pfannenstiel (horizontal) skin incision made. Subcutaneous tissue and rectus sheath divided.",
+      "Peritoneal cavity entered. Bladder flap created and reflected inferiorly to protect the urinary bladder.",
+      "Transverse lower uterine segment incision made. Baby delivered smoothly. Cord clamped and divided.",
+      "Placenta delivered manually. Uterus exteriorized and closed in double layer with Vicryl sutures.",
+      "Hemostasis secured. Abdominal wall closed in layers. Skin closed with subcuticular sutures."
+    ],
+    postOpOrders: [
+      "Keep NPO for 6 hours, then start clear liquids. Encourage breast feeding within 1 hour.",
+      "Monitor vitals, uterine tone (contraction), and vaginal bleeding (lochia) every hour for 4 hours.",
+      "Inj. Oxytocin 20 units in 1L NS at 125 ml/hr for uterine contraction.",
+      "IV fluids: RL 2L over 24 hours. Urinary catheter to remain for 12-24 hours.",
+      "Inj. Ceftriaxone 1g IV BD + Inj. Amikacin 500mg IV OD for 24 hours.",
+      "Inj. Dynapar 75mg IM BD for post-operative pain."
+    ]
   }
 };
+
 
 const getBilingualConsentData = (patient: Patient) => {
   const diagnosis = patient.diagnosis;
@@ -141,6 +243,10 @@ const getBilingualConsentData = (patient: Patient) => {
   const isGallbladder = diagnosis.toLowerCase().includes("cholelithiasis") || procedure.toLowerCase().includes("cholecystectomy");
   const isAppendix = diagnosis.toLowerCase().includes("appendicitis") || procedure.toLowerCase().includes("appendicectomy");
   const isHernia = diagnosis.toLowerCase().includes("hernia") || procedure.toLowerCase().includes("hernioplasty");
+  const isTympanoplasty = procedure.toLowerCase().includes("tympanoplasty");
+  const isKneeReplacement = procedure.toLowerCase().includes("knee replacement") || procedure.toLowerCase().includes("arthroplasty");
+  const isCsection = procedure.toLowerCase().includes("cesarean") || procedure.toLowerCase().includes("lscs");
+
 
   let data = {
     diagnosisEn: `Clinical condition diagnosed as: ${diagnosis}.`,
@@ -234,8 +340,59 @@ const getBilingualConsentData = (patient: Patient) => {
     data.risksSpecificMr = "जांघेत दीर्घकालीन तीव्र वेदना राहणे (चेतापीडा - १०% शक्यता), जाळीला संसर्ग होणे (ज्यामुळे जाळी काढून टाकावी लागते), जांघ किंवा अंडकोषात रक्त/पाणी साठणे, शुक्रवाहिनीला दुखापत होणे, अंडकोष निकामी होणे, हर्निया पुन्हा होणे.";
     
     data.alternativesEn = "Watchful waiting (only for asymptomatic direct hernias) or mechanical truss support (does not cure the defect). Surgery is the definitive treatment.";
-    data.alternativesMr = "निरीक्षण करणे (जर हर्नियाचा त्रास नसेल तर) किंवा हर्निया बेल्ट (Truss) वापरणे (याने छिद्र बंद होत नाही). शस्त्रक्रिया हाच कायमस्वरूपी इलाज आहे.";
+  } else if (isTympanoplasty) {
+    data.diagnosisEn = "Chronic Suppurative Otitis Media (CSOM) with Central Tympanic Membrane Perforation.";
+    data.diagnosisMr = "कर्णपटलाला छिद्र पडणे आणि जुनाट कान वाहणे (CSOM with Central Tympanic Membrane Perforation).";
+    data.procedureEn = "Right/Left Tympanoplasty (Type 1) under General/Local Anaesthesia.";
+    data.procedureMr = "भूल प्रकार अंतर्गत कानाच्या पडद्याची शस्त्रक्रिया (Tympanoplasty Type 1).";
+    
+    data.explainedEn = "Under anesthesia, an incision will be made behind the ear (postauricular) or inside the canal. A graft of temporalis fascia tissue will be harvested from the muscle above the ear. The middle ear cavity will be inspected, and the graft will be placed under the tympanic membrane perforation (underlay technique) to seal it. The ear canal is packed with absorbable gelatin sponge, and the incision is closed with sutures.";
+    data.explainedMr = "भूल दिल्यानंतर, कानाच्या मागे किंवा कानाच्या आत छेद दिला जाईल. कानावरील स्नायूच्या पडद्यातून (Temporalis Fascia) शस्त्रक्रियेसाठी ग्राफ्ट (पडदा) काढला जाईल. मध्य कानाची तपासणी करून, कानाच्या पडद्याच्या छिद्राखाली हा नवा ग्राफ्ट व्यवस्थित बसवला जाईल (Underlay Technique). कानाच्या नळीत विरघळणारा स्पंज (Gelfoam) भरला जाईल आणि बाहेरील छेद टाके घालून बंद केला जाईल.";
+    
+    data.purposeEn = "To seal the eardrum perforation, prevent water from entering the middle ear, stop chronic ear discharge and recurrent infections, and improve or stabilize hearing.";
+    data.purposeMr = "कानाच्या पडद्याचे छिद्र बंद करणे, मध्य कानात पाणी जाण्यास प्रतिबंध करणे, कान वाहणे व वारंवार होणारा जंतूसंसर्ग थांबवणे, आणि ऐकण्याची क्षमता सुधारणे/स्थिर करणे.";
+    
+    data.risksSpecificEn = "Graft failure (re-perforation), hearing loss, chorda tympani nerve damage (temporary or permanent taste disturbance), facial nerve palsy (facial paralysis), vertigo, and tinnitus.";
+    data.risksSpecificMr = "नवीन बसवलेला पडदा न स्वीकारला जाणे (छिद्र पुन्हा पडणे - १०-१५% शक्यता), ऐकण्याची क्षमता कमी होणे, चव जाणवणाऱ्या शिरेला इजा झाल्यामुळे जिभेची चव बदलणे किंवा बधिरता येणे, चेहऱ्याच्या शिरेला दुखापत होऊन अर्धांगवायू (लकवा) होणे (अत्यंत दुर्मिळ - <०.५%), चक्कर येणे आणि कानात सतत आवाज येणे (Tinnitus).";
+    
+    data.alternativesEn = "Watchful waiting with strict ear dry precautions, use of a customized hearing aid, or local antibiotic ear drops. Surgery is the only curative option to close the defect.";
+    data.alternativesMr = "कान नेहमी कोरडा ठेवण्याची काळजी घेणे, श्रवणयंत्र (Hearing Aid) वापरणे किंवा जंतूसंसर्ग झाल्यास कानात औषध सोडणे. छिद्र बंद करण्यासाठी शस्त्रक्रिया हाच एकमेव पर्याय आहे.";
+  } else if (isKneeReplacement) {
+    data.diagnosisEn = "Severe Osteoarthritis of the Knee Joint.";
+    data.diagnosisMr = "गुडघ्यामध्ये गंभीर झीज होणे (Severe Osteoarthritis of Knee Joint).";
+    data.procedureEn = "Total Knee Arthroplasty (Knee Replacement) under Spinal/Epidural Anaesthesia.";
+    data.procedureMr = "स्पायनल/एपीड्युरल भूल अंतर्गत संपूर्ण गुडघा प्रत्यारोपण शस्त्रक्रिया (Total Knee Arthroplasty).";
+    
+    data.explainedEn = "Under spinal or epidural anesthesia, an incision will be made over the front of the knee. The damaged cartilage and bone ends of the femur (thigh bone) and tibia (shin bone) are precisely cut using templates. A metal femur shield and a metal tibia tray are secured to the bone ends, typically with bone cement. A medical-grade polyethylene plastic insert is placed in between to act as a smooth gliding surface. The wound is closed over a drain.";
+    data.explainedMr = "कमरेखालील भाग बधिरीकरण (Spinal/Epidural Anaesthesia) अंतर्गत, गुडघ्याच्या समोर छेद दिला जाईल. मांडीच्या व पायाच्या हाडाचे खराब झालेले टोक आणि कूर्चा (Cartilage) विशिष्ट कापांच्या सहाय्याने काढले जातील. हाडांच्या टोकांवर धातूचे कवच (Implant) हाडांच्या सिमेंटच्या मदतीने बसवले जाईल. त्या दोघांच्या मध्ये एक गुळगुळीत प्लास्टिकचा (Polyethylene) तुकडा ठेवला जाईल जो गुडघ्याची हालचाल सुलभ करेल. रक्तस्त्राव वाहून जाण्यासाठी पाईप (Drain) ठेवून जखम शिवली जाईल.";
+    
+    data.purposeEn = "To relieve chronic arthritic pain, restore normal knee joint alignment and range of motion, improve walking distance, and restore physical independence.";
+    data.purposeMr = "गुडघ्याच्य तीव्र व जुनाट वेदनांपासून आराम मिळवणे, गुडघ्याचे वाकडेपण दुरुस्त करणे, हालचाल सुलभ करणे, चालण्याचे अंतर वाढवणे आणि दैनंदिन कामांसाठी परावलंबित्व संपवणे.";
+    
+    data.risksSpecificEn = "Deep joint prosthetic infection (may require implant removal), deep vein thrombosis (DVT) / pulmonary embolism, knee stiffness, peroneal nerve injury (foot drop), loosening of components, and chronic persistent knee pain.";
+    data.risksSpecificMr = "कृत्रिम सांध्यामध्ये गंभीर जंतूसंसर्ग होणे (ज्यामुळे जाळी/सांधा काढावा लागू साखतो), पायाच्या शिरांमध्ये रक्ताची गाठ होणे (DVT) किंवा ती फुफ्फुसात जाणे (Pulmonary Embolism), सांधा कडक होणे (Stiffness), पायाची नस दबल्यामुळे पाऊल उचलण्यास अडचण येणे (Foot Drop), सांधा सैल होणे आणि शस्त्रक्रियेनंतरही काही प्रमाणात वेदना जाणवणे.";
+    
+    data.alternativesEn = "Physiotherapy, weight loss, knee braces, oral pain medicines, or intra-articular injections (steroid/hyaluronic acid). These provide temporary pain relief, but do not cure severe osteoarthritis.";
+    data.alternativesMr = "भौतिकोपचार (Physiotherapy), वजन कमी करणे, गुडघ्याला बेल्ट लावणे, वेदनाशामक गोळ्या किंवा गुडघ्यामध्ये इंजेक्शन देणे. याने तात्पुरता आराम मिळतो, पण गंभीर झीज झालेली हाडे दुरुस्त होत नाहीत.";
+  } else if (isCsection) {
+    data.diagnosisEn = "Pregnancy at term requiring abdominal delivery due to obstetric indications (breech presentation, fetal distress, or repeat section).";
+    data.diagnosisMr = "गर्भधारणा पूर्ण झाली असून प्रसूतीसाठी पोटावर शस्त्रक्रिया करणे आवश्यक आहे (बाळ उलटे असणे, बाळाच्या जीवाला धोका किंवा पूर्वी सिझेरियन झाले असणे).";
+    data.procedureEn = "Lower Segment Cesarean Section (LSCS) under Spinal Anaesthesia.";
+    data.procedureMr = "स्पायनल भूल अंतर्गत सिझेरियन प्रसूती शस्त्रक्रिया (LSCS).";
+    
+    data.explainedEn = "Under spinal anesthesia, a transverse skin incision is made just above the pubic hairline. The abdominal muscles are separated, and the bladder is pushed down to expose the lower part of the uterus. An incision is made in the lower uterine segment, the baby is delivered and cord is clamped. The placenta is removed, and the uterus and abdominal layers are carefully sutured.";
+    data.explainedMr = "स्पायनल भूल दिल्यानंतर, ओटीपोटाच्या खालच्या भागावर आडवा छेद दिला जाईल. स्नायू बाजूला करून गर्भाशयाच्या खालच्या भागावर छेद दिला जाईल व बाळाला सुरक्षितपणे बाहेर काढले जाईल. नाळ कापून वार (Placenta) बाहेर काढली जाईल. त्यानंतर गर्भाशय व पोटाचे सर्व थर विरघळणाऱ्या टाक्यांनी व्यवस्थित शिवले जातील.";
+    
+    data.purposeEn = "To deliver the baby safely when vaginal birth poses a high risk to the life or health of the mother or the fetus.";
+    data.purposeMr = "सामान्य बाळंतपणामुळे माता किंवा बाळाच्या जीवाला धोका निर्माण होण्याची शक्यता असताना सुरक्षित प्रसूती करणे.";
+    
+    data.risksSpecificEn = "Postpartum Hemorrhage (PPH) potentially requiring transfusion or hysterectomy, maternal bladder/bowel injury, fetal skin laceration, future uterine scar rupture, wound infection, and neonatal breathing difficulty.";
+    data.risksSpecificMr = "प्रसूतीनंतर तीव्र रक्तस्त्राव होणे (PPH - ज्यामुळे गर्भाशय काढावे लागण्याची किंवा रक्त द्यायची गरज पडू शकते), आईच्या मूत्राशय किंवा आतड्याला दुखापत होणे, बाळाच्या त्वचेला किरकोळ ओरखडा पडणे, पुढील बाळंतपणात जुने टाके सुटण्याचा धोका, जखमेत संसर्ग होणे आणि जन्मानंतर बाळाला श्वास घेण्यास अडचण येणे.";
+    
+    data.alternativesEn = "Vaginal delivery or trial of labor after cesarean (TOLAC). However, vaginal delivery is contraindicated or carries extremely high risk under the current obstetric conditions.";
+    data.alternativesMr = "सामान्य प्रसूती (Vaginal Delivery) किंवा पूर्वी सिझेरियन झाले असल्यास सामान्य प्रसूतीचा प्रयत्न (TOLAC). परंतु, सध्याच्या परिस्थितीमध्ये सामान्य बाळंतपण माता व बाळासाठी अत्यंत धोकादायक आहे.";
   }
+
 
   // Comorbidities customization
   let comorbiditiesEn = "No significant comorbidities present that increase standard surgical risks.";

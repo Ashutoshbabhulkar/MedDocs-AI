@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useApp } from './context/AppContext';
 import { Dashboard } from './components/Dashboard';
 import { PatientRegistration } from './components/PatientRegistration';
@@ -7,6 +7,7 @@ import { TemplateBuilder } from './components/TemplateBuilder';
 import { DigitalSigner } from './components/DigitalSigner';
 import { AuditTrail } from './components/AuditTrail';
 import { HospitalSettings } from './components/HospitalSettings';
+import { VoiceChatAssistant } from './components/VoiceChatAssistant';
 import type { UserRole } from './types';
 
 // Icons
@@ -25,8 +26,7 @@ import {
   Mic,
   ChevronLeft,
   ChevronRight,
-  Wifi,
-  Sparkles
+  Wifi
 } from 'lucide-react';
 
 function App() {
@@ -40,9 +40,6 @@ function App() {
     setTheme,
     notifications,
     markNotificationAsRead,
-    chatMessages,
-    sendChatMessage,
-    patients,
     doctors,
     currentDoctor,
     setCurrentDoctor
@@ -55,39 +52,9 @@ function App() {
   // App states
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isChatOpen, setIsChatOpen] = useState(false);
-  const [chatInput, setChatInput] = useState('');
-  const [isDictating, setIsDictating] = useState(false);
-  const [dictationText, setDictationText] = useState('');
   const [showNotifications, setShowNotifications] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
 
-  // Trigger simulated voice command dictation
-  const startSimulatedDictation = () => {
-    if (isDictating) return;
-    setIsDictating(true);
-    setDictationText('Listening...');
-    
-    // Simulate speech inputs
-    setTimeout(() => {
-      setDictationText('"Generate laparoscopic appendicectomy consent"');
-    }, 1500);
-
-    setTimeout(() => {
-      setIsDictating(false);
-      setDictationText('');
-      // Set parameters and change view
-      setSelectedPatientId(patients[1]?.id || null); // selects Anjali Deshmukh (Lap Appy case)
-      setActiveTab('clinical');
-      alert('Voice command captured: "Generate laparoscopic appendicectomy consent" for Anjali Deshmukh');
-    }, 3500);
-  };
-
-  const handleSendChat = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!chatInput.trim()) return;
-    sendChatMessage(chatInput, selectedPatientId || undefined);
-    setChatInput('');
-  };
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -223,23 +190,20 @@ function App() {
 
           {/* Controls toolbar */}
           <div className="flex items-center gap-4">
-            {/* Voice Dictation Simulation */}
+            {/* Voice Assistant Toggler */}
             <div className="flex items-center gap-1.5">
               <button
-                onClick={startSimulatedDictation}
+                onClick={() => setIsChatOpen(!isChatOpen)}
                 className={`p-2 rounded-xl border flex items-center gap-1.5 text-xs font-bold transition-all ${
-                  isDictating 
-                    ? 'bg-rose-50 text-rose-600 border-rose-200 animate-pulse-ring' 
+                  isChatOpen
+                    ? 'bg-blue-50 text-blue-600 border-blue-200 shadow-sm'
                     : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300'
                 }`}
-                title="Dictate document name"
+                title="Toggle Voice Assistant Drawer"
               >
-                <Mic size={14} className={isDictating ? 'text-rose-500' : 'text-slate-400'} />
-                {isDictating ? 'Transcribing...' : 'AI Voice Dictation'}
+                <Mic size={14} className={isChatOpen ? 'text-blue-600 animate-pulse' : 'text-slate-400'} />
+                AI Voice Assistant
               </button>
-              {dictationText && (
-                <span className="text-[10px] text-rose-600 font-mono italic animate-pulse">{dictationText}</span>
-              )}
             </div>
 
             {/* Clinician Active Login Switcher */}
@@ -383,85 +347,12 @@ function App() {
 
       {/* AI Assistant Chat Sidebar Drawer */}
       {isChatOpen && (
-        <aside className="w-80 bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 flex flex-col justify-between shadow-xl z-30 shrink-0 no-print">
-          
-          {/* Header */}
-          <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 flex justify-between items-center">
-            <div className="flex items-center gap-2">
-              <div className="p-1 rounded-md bg-blue-50 text-blue-500 dark:bg-blue-950/50">
-                <Sparkles size={16} />
-              </div>
-              <div>
-                <h3 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-wider">Clinical AI Assistant</h3>
-                <span className="text-[9px] text-slate-400">OpenAI GPT-5.5 Brain</span>
-              </div>
-            </div>
-            <button 
-              onClick={() => setIsChatOpen(false)}
-              className="text-xs font-bold text-slate-400 hover:text-slate-600"
-            >
-              Hide
-            </button>
-          </div>
-
-          {/* Messages Stream */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs">
-            {chatMessages.map((msg, i) => (
-              <div 
-                key={i} 
-                className={`space-y-1 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}
-              >
-                <span className="text-[9px] text-slate-400 font-semibold">{msg.timestamp}</span>
-                <div 
-                  className={`p-3 rounded-2xl max-w-[90%] inline-block text-[11px] leading-relaxed text-left ${
-                    msg.role === 'user'
-                      ? 'bg-blue-600 text-white rounded-tr-none ml-auto'
-                      : 'bg-slate-50 dark:bg-slate-800 dark:text-slate-200 border border-slate-100 dark:border-slate-800 rounded-tl-none mr-auto'
-                  }`}
-                  style={{ whiteSpace: 'pre-line' }}
-                  dangerouslySetInnerHTML={{ __html: msg.text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }}
-                />
-              </div>
-            ))}
-          </div>
-
-          {/* Suggestions & Input console */}
-          <div className="p-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
-            {/* Quick Actions Shortcuts */}
-            <div className="flex gap-1.5 flex-wrap">
-              <button
-                onClick={() => sendChatMessage("Summarize patient stay", selectedPatientId || undefined)}
-                className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-[9px] font-bold px-2 py-1 rounded-lg"
-              >
-                📝 Summarize Stay
-              </button>
-              <button
-                onClick={() => sendChatMessage("Generate laparoscopic cholecystectomy operation note", selectedPatientId || undefined)}
-                className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-[9px] font-bold px-2 py-1 rounded-lg"
-              >
-                🔪 Operative Note
-              </button>
-            </div>
-
-            {/* Input Form */}
-            <form onSubmit={handleSendChat} className="flex gap-2">
-              <input
-                type="text"
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                placeholder="Ask clinical queries..."
-                className="flex-1 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-blue-100 dark:bg-slate-800 dark:text-white"
-              />
-              <button
-                type="submit"
-                className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-3 py-2 rounded-xl text-xs"
-              >
-                Send
-              </button>
-            </form>
-          </div>
-
-        </aside>
+        <VoiceChatAssistant
+          onClose={() => setIsChatOpen(false)}
+          setActiveTab={setActiveTab}
+          selectedPatientId={selectedPatientId}
+          setSelectedPatientId={setSelectedPatientId}
+        />
       )}
 
     </div>
