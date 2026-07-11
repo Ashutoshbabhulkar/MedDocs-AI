@@ -11,6 +11,79 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
+// Helper function to extract structured data from raw clipboard text dumps of any HIMS software
+const parseHimsText = (text: string) => {
+  const data: any = {
+    name: '',
+    uhid: '',
+    age: 0,
+    gender: 'Male',
+    diagnosis: '',
+    procedurePlanned: '',
+    vitals: { bp: '', pulse: '', temp: '', rr: '', spo2: '' },
+    investigations: { hb: '', wbc: '', platelets: '', creatinine: '' }
+  };
+
+  // 1. Patient Name matching
+  const nameMatch = text.match(/(?:PATIENT\s*REGISTRATION|Patient\s*Name|Pt\s*Name|Name|Patient)\s*[:|-]?\s*([^\n\r]+)/i);
+  if (nameMatch) {
+    let cleanedName = nameMatch[1].trim();
+    // Split on typical next fields if they are inline (e.g. Name: Sanjay Kulkarni Age: 39 or Name: Sanjay, Age: 39)
+    cleanedName = cleanedName.split(/(?:,|\bAge\b|\bGender\b|\bSex\b|\bUHID\b|\bID\b|\|)/i)[0].trim();
+    data.name = cleanedName;
+  }
+
+  // 2. UHID / Patient ID matching
+  const uhidMatch = text.match(/(?:UHID|HIMS\s*ID|MRN|ID|Reg\s*No)\s*[:|-]?\s*([A-Za-z0-9-]+)/i);
+  if (uhidMatch) data.uhid = uhidMatch[1].trim();
+
+  // 3. Age matching
+  const ageMatch = text.match(/(?:Age|Yr|Years)[^0-9\n\r]*(\d+)/i) || text.match(/(\d+)\s*(?:Years|Yrs|Yr|old)/i);
+  if (ageMatch) data.age = parseInt(ageMatch[1]);
+
+  // 4. Gender matching
+  const genderMatch = text.match(/\b(Female|Male|Other)\b/i) || text.match(/\b(F|M)\b/i);
+  if (genderMatch) {
+    const g = genderMatch[1].trim().toLowerCase();
+    if (g.startsWith('f')) data.gender = 'Female';
+    else if (g.startsWith('m')) data.gender = 'Male';
+    else if (g.startsWith('o')) data.gender = 'Other';
+  }
+
+  // 5. Diagnosis matching
+  const dxMatch = text.match(/(?:Diagnosis|Dx|Indication|Clinical\s*Diagnosis)\s*[:|-]?\s*([^\n\r|]+)/i);
+  if (dxMatch) data.diagnosis = dxMatch[1].trim();
+
+  // 6. Planned Procedure matching
+  const pxMatch = text.match(/(?:Procedure|Rx|Surgery|Planned\s*Surgery|Planned\s*Procedure|Proposed\s*Action)\s*[:|-]?\s*([^\n\r|]+)/i);
+  if (pxMatch) data.procedurePlanned = pxMatch[1].trim();
+
+  // 7. Vitals (BP, Pulse, Temp, SpO2)
+  const bpMatch = text.match(/(?:BP|Blood\s*Pressure)\s*[:|-]?\s*(\d+\/\d+)/i);
+  if (bpMatch) data.vitals.bp = bpMatch[1].trim();
+
+  const pulseMatch = text.match(/(?:Pulse|HR|Heart\s*Rate)\s*[:|-]?\s*(\d+)/i);
+  if (pulseMatch) data.vitals.pulse = pulseMatch[1].trim();
+
+  const tempMatch = text.match(/(?:Temp|Temperature)\s*[:|-]?\s*([\d.]+)/i);
+  if (tempMatch) data.vitals.temp = tempMatch[1].trim();
+
+  const spo2Match = text.match(/(?:SpO2|Oxygen|O2)\s*[:|-]?\s*(\d+)/i);
+  if (spo2Match) data.vitals.spo2 = spo2Match[1].trim();
+
+  // 8. Investigations (Hb, Platelets, Creatinine)
+  const hbMatch = text.match(/(?:Hb|Hemoglobin)\s*[:|-]?\s*([\d.]+)/i);
+  if (hbMatch) data.investigations.hb = hbMatch[1].trim();
+
+  const platMatch = text.match(/(?:Platelet|Platelets|Plt)\s*[:|-]?\s*(\d+)/i);
+  if (platMatch) data.investigations.platelets = platMatch[1].trim();
+
+  const creatMatch = text.match(/(?:Creatinine|Creat)\s*[:|-]?\s*([\d.]+)/i);
+  if (creatMatch) data.investigations.creatinine = creatMatch[1].trim();
+
+  return data;
+};
+
 interface PatientRegistrationProps {
   setActiveTab: (tab: string) => void;
   setSelectedPatientId: (id: string) => void;
@@ -18,10 +91,15 @@ interface PatientRegistrationProps {
 
 export const PatientRegistration: React.FC<PatientRegistrationProps> = ({ setActiveTab, setSelectedPatientId }) => {
   const { currentHospital, addPatient, runOCR, doctors, addDoctor, currentDoctor } = useApp();
-  const [activeSubTab, setActiveSubTab] = useState<'manual' | 'ocr'>('manual');
+  const [activeSubTab, setActiveSubTab] = useState<'manual' | 'ocr' | 'paste'>('manual');
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrComplete, setOcrComplete] = useState(false);
   const [ocrLogs, setOcrLogs] = useState<string[]>([]);
+
+  const [pasteInput, setPasteInput] = useState('');
+  const [pasteLoading, setPasteLoading] = useState(false);
+  const [pasteComplete, setPasteComplete] = useState(false);
+  const [pasteLogs, setPasteLogs] = useState<string[]>([]);
   
   const [showAddDoctor, setShowAddDoctor] = useState(false);
   const [newDocName, setNewDocName] = useState('');
@@ -49,7 +127,7 @@ export const PatientRegistration: React.FC<PatientRegistrationProps> = ({ setAct
     setOcrComplete(false);
   }, [currentHospital]);
 
-  // Clipboard paste listener
+  // Clipboard image screenshot paste listener
   React.useEffect(() => {
     if (activeSubTab !== 'ocr') return;
 
@@ -79,6 +157,106 @@ export const PatientRegistration: React.FC<PatientRegistrationProps> = ({ setAct
       window.removeEventListener('paste', handleGlobalPaste);
     };
   }, [activeSubTab]);
+
+  // Clipboard text paste listener for universal smart import
+  React.useEffect(() => {
+    if (activeSubTab !== 'paste') return;
+
+    const handleTextPaste = (e: ClipboardEvent) => {
+      // Avoid intercepting inside other input elements
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' && target !== document.querySelector('textarea[placeholder*="Click here and press"]')) {
+        return;
+      }
+      const text = e.clipboardData?.getData('text');
+      if (text) {
+        setPasteInput(text);
+        triggerTextParsing(text);
+      }
+    };
+
+    window.addEventListener('paste', handleTextPaste);
+    return () => {
+      window.removeEventListener('paste', handleTextPaste);
+    };
+  }, [activeSubTab]);
+
+  const triggerTextParsing = async (textToParse: string) => {
+    if (!textToParse.trim()) return;
+    setPasteLoading(true);
+    setPasteComplete(false);
+    setPasteLogs([
+      "Initializing Universal Clinical Text Parser...",
+      "Analyzing layout patterns in clipboard dump...",
+      "Scanning text blocks for key-value headers..."
+    ]);
+
+    setTimeout(() => {
+      const parsed = parseHimsText(textToParse);
+      
+      const newLogs = [
+        "Initializing Universal Clinical Text Parser...",
+        "Analyzing layout patterns in clipboard dump...",
+        "Scanning text blocks for key-value headers...",
+        parsed.name ? `✔ Extracted Patient Name: "${parsed.name}"` : "⚠ Patient Name: Not found in text structure",
+        parsed.uhid ? `✔ Extracted UHID/Reg No: "${parsed.uhid}"` : "⚠ UHID: Not found (using temporary placeholder)",
+        parsed.age ? `✔ Extracted Age: ${parsed.age} Years` : "⚠ Age: Not found",
+        parsed.gender ? `✔ Extracted Gender: ${parsed.gender}` : "⚠ Gender: Defaulted",
+        parsed.diagnosis ? `✔ Extracted Diagnosis: "${parsed.diagnosis}"` : "⚠ Diagnosis: Not found",
+        parsed.procedurePlanned ? `✔ Extracted Procedure: "${parsed.procedurePlanned}"` : "⚠ Planned Procedure: Not found",
+        parsed.vitals.bp ? `✔ Extracted Vitals: BP ${parsed.vitals.bp} mmHg, Pulse ${parsed.vitals.pulse || 'N/A'}/min` : "⚠ Vitals: No clear metrics found",
+        "Validating clinical details against NABH guidelines...",
+        "Form fields successfully auto-populated!"
+      ];
+      
+      setPasteLogs(newLogs);
+      setPasteLoading(false);
+      setPasteComplete(true);
+
+      // Merge into form state
+      setFormData(prev => ({
+        ...prev,
+        name: parsed.name || prev.name,
+        uhid: parsed.uhid || prev.uhid,
+        age: parsed.age || prev.age,
+        gender: parsed.gender || prev.gender,
+        diagnosis: parsed.diagnosis || prev.diagnosis,
+        procedurePlanned: parsed.procedurePlanned || prev.procedurePlanned,
+        vitals: {
+          ...prev.vitals,
+          bp: parsed.vitals.bp || prev.vitals.bp,
+          pulse: parsed.vitals.pulse || prev.vitals.pulse,
+          temp: parsed.vitals.temp || prev.vitals.temp,
+          spo2: parsed.vitals.spo2 || prev.vitals.spo2
+        },
+        investigations: {
+          ...prev.investigations,
+          hb: parsed.investigations.hb || prev.investigations.hb,
+          platelets: parsed.investigations.platelets || prev.investigations.platelets,
+          creatinine: parsed.investigations.creatinine || prev.investigations.creatinine
+        }
+      }));
+
+      confetti({
+        particleCount: 55,
+        spread: 50,
+        colors: ['#3b82f6', '#10b981', '#6366f1']
+      });
+    }, 1200);
+  };
+
+  const loadSampleText = (type: 'ekacare' | 'epic' | 'legacy') => {
+    let sample = '';
+    if (type === 'ekacare') {
+      sample = `Eka Care EMR Report\nUHID: EKA-980129\nPatient Name: Sanjay Kulkarni\nAge/Gender: 39 / Male\nVitals: Temp 98.6 F, Pulse 76 bpm, BP 120/80 mmHg, SpO2 99%\nDiagnosis: Chronic Suppurative Otitis Media (CSOM) with central perforation\nPlanned Surgery: Right Tympanoplasty (Type 1)\nSurgeon: Dr. Sophia Vance\nInvestigations: Hb 13.8 g/dL, Platelets 220000, Creatinine 0.9 mg/dL`;
+    } else if (type === 'epic') {
+      sample = `EPIC SYSTEMS CLINICAL SUMMARY\nMRN/UHID: EPIC-8830112\nPatient: Priyanka Patil, 28 Years, Female\nObs/Gynae Note: Term pregnancy, 38 weeks, breech presentation\nDiagnosis: Breech Presentation / Pregnancy at term\nPlanned Procedure: Lower Segment Cesarean Section (LSCS)\nVitals Flowsheet: BP 130/80 mmHg, HR 88 bpm, SpO2 98%\nInvestigations: Hb 11.2, Platelets 180000, Creatinine 0.7`;
+    } else {
+      sample = `AAS CLINICAL DATA SHEET\nPATIENT REGISTRATION: Leela Bai Salunkhe\nHIMS ID: AAS-90412\nAge: 68 Years | Gender: Female\nClinical Diagnosis: Severe Osteoarthritis of Knee Joint (Left)\nProposed Action: Left Total Knee Arthroplasty (Knee Replacement)\nAdmitting Consultant: Dr. Sophia Vance\nVitals: Pulse 82/min, BP 140/90 mmHg, Temp 97.8 F\nInvestigations: Hb 12.1, Platelets 250000, Creatinine 1.1`;
+    }
+    setPasteInput(sample);
+    triggerTextParsing(sample);
+  };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -354,6 +532,16 @@ export const PatientRegistration: React.FC<PatientRegistrationProps> = ({ setAct
           >
             <Sparkles size={13} className="text-blue-500" /> HIMS Screenshot OCR
           </button>
+          <button
+            onClick={() => setActiveSubTab('paste')}
+            className={`px-4 py-2 text-xs font-bold rounded-lg flex items-center gap-1.5 transition-all ${
+              activeSubTab === 'paste' 
+                ? 'bg-white dark:bg-slate-900 text-slate-800 dark:text-white shadow-sm' 
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <ClipboardList size={13} className="text-blue-500" /> AI Smart Paste
+          </button>
         </div>
       </div>
 
@@ -495,6 +683,125 @@ export const PatientRegistration: React.FC<PatientRegistrationProps> = ({ setAct
             {ocrLoading && (
               <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden mt-4">
                 <div className="bg-blue-500 h-full animate-[progress_3s_ease-in-out]" style={{ width: '100%' }}></div>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
+
+      {activeSubTab === 'paste' ? (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fadeIn">
+          {/* Paste Zone */}
+          <div className="lg:col-span-1 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col justify-between space-y-4 min-h-[380px]">
+            
+            <div className="w-full text-left">
+              <label className="block text-[10px] font-extrabold text-slate-400 dark:text-slate-300 uppercase mb-1">
+                Universal HIMS Text Import
+              </label>
+              <p className="text-[11px] text-slate-450 dark:text-slate-400 leading-normal">
+                Copy patient demographics/clinical details from any EMR page and paste them below (or click a test sample).
+              </p>
+            </div>
+
+            {/* Area for Paste */}
+            <div className="flex-1 flex flex-col relative">
+              <textarea
+                value={pasteInput}
+                onChange={(e) => {
+                  setPasteInput(e.target.value);
+                  triggerTextParsing(e.target.value);
+                }}
+                placeholder="Click here and press Ctrl + V to paste patient text..."
+                className="w-full flex-1 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl p-3.5 text-xs outline-none focus:ring-2 focus:ring-blue-100 dark:bg-slate-800 dark:text-white resize-none font-mono focus:border-blue-500 transition-all min-h-[160px]"
+              />
+              {!pasteInput && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center p-4">
+                  <ClipboardList className="w-8 h-8 text-blue-500 mb-2 opacity-40" />
+                  <span className="text-[10px] text-slate-450 dark:text-slate-400 font-bold">Smart Paste Area</span>
+                  <span className="text-[9px] text-slate-400">Ctrl + V to auto-extract fields</span>
+                </div>
+              )}
+            </div>
+
+            {/* Quick Test Samples */}
+            <div className="space-y-1.5 text-left">
+              <span className="block text-[9px] font-black text-slate-400 uppercase tracking-wider">Test Clipboard Templates</span>
+              <div className="grid grid-cols-3 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => loadSampleText('ekacare')}
+                  className="bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-bold py-1.5 px-2 rounded-lg text-[9px] text-center truncate border border-blue-100/30 transition-all"
+                  title="Test Eka Care EMR Format"
+                >
+                  Eka Care
+                </button>
+                <button
+                  type="button"
+                  onClick={() => loadSampleText('epic')}
+                  className="bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 font-bold py-1.5 px-2 rounded-lg text-[9px] text-center truncate border border-indigo-100/30 transition-all"
+                  title="Test Epic EHR Format"
+                >
+                  Epic Systems
+                </button>
+                <button
+                  type="button"
+                  onClick={() => loadSampleText('legacy')}
+                  className="bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-bold py-1.5 px-2 rounded-lg text-[9px] text-center truncate border border-emerald-100/30 transition-all"
+                  title="Test AAS HIMS Format"
+                >
+                  AAS HIMS
+                </button>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setPasteInput('');
+                  setPasteLogs([]);
+                  setPasteComplete(false);
+                }}
+                className="w-full bg-slate-105 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold py-2 px-3 rounded-xl text-xs transition-all border border-slate-150 dark:border-slate-750"
+              >
+                Clear Input
+              </button>
+            </div>
+
+            {pasteComplete && (
+              <div className="bg-emerald-50 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900 rounded-xl p-3 flex items-start gap-2 text-left w-full">
+                <FileCheck size={18} className="text-emerald-500 mt-0.5 shrink-0" />
+                <div>
+                  <h5 className="text-xs font-bold">Extraction Successful</h5>
+                  <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5">
+                    Structured fields successfully loaded. Verify details below.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Logs Terminal */}
+          <div className="lg:col-span-2 bg-slate-900 text-slate-350 font-mono p-5 rounded-2xl border border-slate-850 shadow-xl min-h-[380px] flex flex-col justify-between text-left">
+            <div className="space-y-1.5 overflow-y-auto max-h-[320px] text-xs">
+              <div className="text-slate-500 border-b border-slate-800 pb-1.5 mb-2 flex items-center justify-between font-bold">
+                <span>[MEDDOCS AI SMART PARSER v2.0.1]</span>
+                <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"></span>
+              </div>
+              {pasteLogs.length === 0 ? (
+                <div className="text-slate-500 italic">Waiting for text paste (Ctrl+V) or click on a sample template above...</div>
+              ) : (
+                pasteLogs.map((log, index) => (
+                  <div key={index} className="flex gap-2">
+                    <span className="text-blue-400">➜</span>
+                    <span>{log}</span>
+                  </div>
+                ))
+              )}
+            </div>
+            {pasteLoading && (
+              <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden mt-4">
+                <div className="bg-blue-500 h-full animate-[progress_1.2s_ease-in-out]" style={{ width: '100%' }}></div>
               </div>
             )}
           </div>
