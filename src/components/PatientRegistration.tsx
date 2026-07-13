@@ -269,6 +269,8 @@ Required JSON format:
         parsed.diagnosis ? `✔ Extracted Diagnosis: "${parsed.diagnosis}"` : "⚠ Diagnosis: Not found",
         parsed.procedurePlanned ? `✔ Extracted Procedure: "${parsed.procedurePlanned}"` : "⚠ Planned Procedure: Not found",
         parsed.vitals.bp ? `✔ Extracted Vitals: BP ${parsed.vitals.bp} mmHg, Pulse ${parsed.vitals.pulse || 'N/A'}/min` : "⚠ Vitals: No clear metrics found",
+        parsed.mobile ? `✔ Extracted Mobile: "${parsed.mobile}"` : "⚠ Mobile: Not found",
+        parsed.laterality ? `✔ Extracted Laterality: "${parsed.laterality}"` : "⚠ Laterality: Not found",
         "Validating clinical details against NABH guidelines...",
         "Form fields successfully auto-populated!"
       ];
@@ -283,6 +285,8 @@ Required JSON format:
         uhid: parsed.uhid || prev.uhid,
         age: parsed.age || prev.age,
         gender: parsed.gender || prev.gender,
+        mobile: parsed.mobile || prev.mobile,
+        laterality: parsed.laterality || prev.laterality,
         diagnosis: parsed.diagnosis || prev.diagnosis,
         procedurePlanned: parsed.procedurePlanned || prev.procedurePlanned,
         vitals: {
