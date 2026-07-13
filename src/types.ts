@@ -38,6 +38,10 @@ export interface Hospital {
   gstNumber: string;
   nabhApproved: boolean;
   nablApproved: boolean;
+  headerImage?: string;
+  footerImage?: string;
+  geminiApiKey?: string;
+  consentToAiShare?: boolean;
 }
 
 export interface Vitals {

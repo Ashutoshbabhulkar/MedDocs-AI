@@ -297,19 +297,29 @@ export const TemplateBuilder: React.FC = () => {
 
               {/* Letterhead Logo Area */}
               {showLogo && (
-                <div className="border-b-2 border-slate-800 pb-4 mb-6 flex justify-between items-center no-print">
-                  <div className="flex items-center gap-3">
-                    <span className="text-4xl">{currentHospital.logo}</span>
-                    <div>
-                      <h4 className="text-sm font-black text-slate-800 uppercase tracking-wide">{currentHospital.name}</h4>
-                      <p className="text-[8px] text-slate-400 font-semibold">{currentHospital.registrationNumber} • NABH CERTIFIED</p>
+                currentHospital.headerImage ? (
+                  <div className="mb-6 no-print">
+                    <img 
+                      src={currentHospital.headerImage} 
+                      alt="Letterhead Header" 
+                      className="w-full max-h-[80px] object-contain border-b pb-2" 
+                    />
+                  </div>
+                ) : (
+                  <div className="border-b-2 border-slate-800 pb-4 mb-6 flex justify-between items-center no-print">
+                    <div className="flex items-center gap-3">
+                      <span className="text-4xl">{currentHospital.logo}</span>
+                      <div>
+                        <h4 className="text-sm font-black text-slate-800 uppercase tracking-wide">{currentHospital.name}</h4>
+                        <p className="text-[8px] text-slate-400 font-semibold">{currentHospital.registrationNumber} • NABH CERTIFIED</p>
+                      </div>
+                    </div>
+                    <div className="text-right text-[8px] text-slate-400 space-y-0.5">
+                      <p>{currentHospital.address}</p>
+                      <p>{currentHospital.phone} • {currentHospital.email}</p>
                     </div>
                   </div>
-                  <div className="text-right text-[8px] text-slate-400 space-y-0.5">
-                    <p>{currentHospital.address}</p>
-                    <p>{currentHospital.phone} • {currentHospital.email}</p>
-                  </div>
-                </div>
+                )
               )}
 
               {/* Visual elements container */}
@@ -396,6 +406,17 @@ export const TemplateBuilder: React.FC = () => {
                   </div>
                 ))}
               </div>
+
+              {/* Letterhead Footer Area */}
+              {showLogo && currentHospital.footerImage && (
+                <div className="mt-6 pt-4 border-t no-print">
+                  <img 
+                    src={currentHospital.footerImage} 
+                    alt="Letterhead Footer" 
+                    className="w-full max-h-[60px] object-contain mx-auto" 
+                  />
+                </div>
+              )}
 
               {/* Form Variables Guide */}
               <div className="mt-8 border-t border-slate-100 pt-4 text-[9px] text-slate-400 no-print flex justify-between items-center">

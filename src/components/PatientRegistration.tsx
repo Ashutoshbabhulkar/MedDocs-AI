@@ -10,79 +10,7 @@ import {
   ClipboardList
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-
-// Helper function to extract structured data from raw clipboard text dumps of any HIMS software
-const parseHimsText = (text: string) => {
-  const data: any = {
-    name: '',
-    uhid: '',
-    age: 0,
-    gender: 'Male',
-    diagnosis: '',
-    procedurePlanned: '',
-    vitals: { bp: '', pulse: '', temp: '', rr: '', spo2: '' },
-    investigations: { hb: '', wbc: '', platelets: '', creatinine: '' }
-  };
-
-  // 1. Patient Name matching
-  const nameMatch = text.match(/(?:PATIENT\s*REGISTRATION|Patient\s*Name|Pt\s*Name|Name|Patient)\s*[:|-]?\s*([^\n\r]+)/i);
-  if (nameMatch) {
-    let cleanedName = nameMatch[1].trim();
-    // Split on typical next fields if they are inline (e.g. Name: Sanjay Kulkarni Age: 39 or Name: Sanjay, Age: 39)
-    cleanedName = cleanedName.split(/(?:,|\bAge\b|\bGender\b|\bSex\b|\bUHID\b|\bID\b|\|)/i)[0].trim();
-    data.name = cleanedName;
-  }
-
-  // 2. UHID / Patient ID matching
-  const uhidMatch = text.match(/(?:UHID|HIMS\s*ID|MRN|ID|Reg\s*No)\s*[:|-]?\s*([A-Za-z0-9-]+)/i);
-  if (uhidMatch) data.uhid = uhidMatch[1].trim();
-
-  // 3. Age matching
-  const ageMatch = text.match(/(?:Age|Yr|Years)[^0-9\n\r]*(\d+)/i) || text.match(/(\d+)\s*(?:Years|Yrs|Yr|old)/i);
-  if (ageMatch) data.age = parseInt(ageMatch[1]);
-
-  // 4. Gender matching
-  const genderMatch = text.match(/\b(Female|Male|Other)\b/i) || text.match(/\b(F|M)\b/i);
-  if (genderMatch) {
-    const g = genderMatch[1].trim().toLowerCase();
-    if (g.startsWith('f')) data.gender = 'Female';
-    else if (g.startsWith('m')) data.gender = 'Male';
-    else if (g.startsWith('o')) data.gender = 'Other';
-  }
-
-  // 5. Diagnosis matching
-  const dxMatch = text.match(/(?:Diagnosis|Dx|Indication|Clinical\s*Diagnosis)\s*[:|-]?\s*([^\n\r|]+)/i);
-  if (dxMatch) data.diagnosis = dxMatch[1].trim();
-
-  // 6. Planned Procedure matching
-  const pxMatch = text.match(/(?:Procedure|Rx|Surgery|Planned\s*Surgery|Planned\s*Procedure|Proposed\s*Action)\s*[:|-]?\s*([^\n\r|]+)/i);
-  if (pxMatch) data.procedurePlanned = pxMatch[1].trim();
-
-  // 7. Vitals (BP, Pulse, Temp, SpO2)
-  const bpMatch = text.match(/(?:BP|Blood\s*Pressure)\s*[:|-]?\s*(\d+\/\d+)/i);
-  if (bpMatch) data.vitals.bp = bpMatch[1].trim();
-
-  const pulseMatch = text.match(/(?:Pulse|HR|Heart\s*Rate)\s*[:|-]?\s*(\d+)/i);
-  if (pulseMatch) data.vitals.pulse = pulseMatch[1].trim();
-
-  const tempMatch = text.match(/(?:Temp|Temperature)\s*[:|-]?\s*([\d.]+)/i);
-  if (tempMatch) data.vitals.temp = tempMatch[1].trim();
-
-  const spo2Match = text.match(/(?:SpO2|Oxygen|O2)\s*[:|-]?\s*(\d+)/i);
-  if (spo2Match) data.vitals.spo2 = spo2Match[1].trim();
-
-  // 8. Investigations (Hb, Platelets, Creatinine)
-  const hbMatch = text.match(/(?:Hb|Hemoglobin)\s*[:|-]?\s*([\d.]+)/i);
-  if (hbMatch) data.investigations.hb = hbMatch[1].trim();
-
-  const platMatch = text.match(/(?:Platelet|Platelets|Plt)\s*[:|-]?\s*(\d+)/i);
-  if (platMatch) data.investigations.platelets = platMatch[1].trim();
-
-  const creatMatch = text.match(/(?:Creatinine|Creat)\s*[:|-]?\s*([\d.]+)/i);
-  if (creatMatch) data.investigations.creatinine = creatMatch[1].trim();
-
-  return data;
-};
+import { parseHimsText } from '../utils/himsParser';
 
 interface PatientRegistrationProps {
   setActiveTab: (tab: string) => void;
@@ -90,7 +18,7 @@ interface PatientRegistrationProps {
 }
 
 export const PatientRegistration: React.FC<PatientRegistrationProps> = ({ setActiveTab, setSelectedPatientId }) => {
-  const { currentHospital, addPatient, runOCR, doctors, addDoctor, currentDoctor } = useApp();
+  const { currentHospital, setCurrentHospital, addPatient, runOCR, doctors, addDoctor, currentDoctor, callGeminiAPI } = useApp();
   const [activeSubTab, setActiveSubTab] = useState<'manual' | 'ocr' | 'paste'>('manual');
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrComplete, setOcrComplete] = useState(false);
@@ -191,6 +119,142 @@ export const PatientRegistration: React.FC<PatientRegistrationProps> = ({ setAct
       "Scanning text blocks for key-value headers..."
     ]);
 
+    const addLogMessage = (msg: string) => {
+      setPasteLogs(prev => [...prev, msg]);
+    };
+
+    if (false && currentHospital.geminiApiKey && currentHospital.consentToAiShare) {
+      addLogMessage("Routing text to client-side Gemini AI content parser...");
+      try {
+        const prompt = `You are an expert medical transcriptionist. Analyze the following clinical text raw dump, extract all relevant fields, and return them in JSON format. Do not use markdown backticks, tags or extra texts. Return ONLY valid JSON.
+Clinical raw text:
+"""
+${textToParse}
+"""
+
+Required JSON format:
+{
+  "name": "Patient Name",
+  "age": 45,
+  "dob": "YYYY-MM-DD",
+  "gender": "Male" or "Female",
+  "uhid": "UHID",
+  "mobile": "10-digit number",
+  "address": "Address",
+  "bloodGroup": "Blood Group",
+  "weight": "e.g. 70 kg",
+  "height": "e.g. 165 cm",
+  "diagnosis": "Clinical Diagnosis details",
+  "comorbidities": "Comorbidities",
+  "allergies": "Allergies",
+  "laterality": "Left" or "Right" or "Bilateral" or "Not Applicable",
+  "procedurePlanned": "Planned surgical procedure",
+  "consultant": "Consultant Name",
+  "anaesthetist": "Anaesthetist Name",
+  "ward": "Ward",
+  "room": "Room",
+  "bed": "Bed",
+  "insurance": "Insurance details",
+  "mlc": false,
+  "emergency": false,
+  "asaGrade": "ASA Grade",
+  "vitals": {
+    "bp": "Blood pressure",
+    "pulse": "Pulse rate",
+    "temp": "Body temperature",
+    "rr": "Respiratory rate",
+    "spo2": "SpO2 percentage"
+  },
+  "investigations": {
+    "hb": "Hemoglobin",
+    "wbc": "WBC",
+    "platelets": "Platelets",
+    "creatinine": "Creatinine",
+    "ecg": "ECG",
+    "cxr": "Chest X-Ray"
+  }
+}`;
+        const responseText = await callGeminiAPI(prompt);
+        let jsonStr = responseText.trim();
+        const jsonStart = jsonStr.indexOf('{');
+        const jsonEnd = jsonStr.lastIndexOf('}');
+        if (jsonStart !== -1 && jsonEnd !== -1) {
+          jsonStr = jsonStr.substring(jsonStart, jsonEnd + 1);
+        }
+        
+        const parsed = JSON.parse(jsonStr);
+        setPasteLogs([
+          "Initializing Universal Clinical Text Parser...",
+          "Analyzing layout patterns in clipboard dump...",
+          "Scanning text blocks for key-value headers...",
+          "Routing text to client-side Gemini AI content parser...",
+          "Gemini AI successfully completed clinical entity parsing.",
+          parsed.name ? `✔ Extracted Patient Name: "${parsed.name}"` : "⚠ Patient Name: Not found",
+          parsed.uhid ? `✔ Extracted UHID/Reg No: "${parsed.uhid}"` : "⚠ UHID: Not found",
+          "Validating clinical details against NABH guidelines...",
+          "Form fields successfully auto-populated!"
+        ]);
+        
+        setPasteLoading(false);
+        setPasteComplete(true);
+
+        setFormData(prev => ({
+          ...prev,
+          name: parsed.name || prev.name,
+          uhid: parsed.uhid || prev.uhid,
+          age: parsed.age || prev.age,
+          gender: parsed.gender || prev.gender,
+          dob: parsed.dob || prev.dob,
+          mobile: parsed.mobile || prev.mobile,
+          address: parsed.address || prev.address,
+          bloodGroup: parsed.bloodGroup || prev.bloodGroup,
+          weight: parsed.weight || prev.weight,
+          height: parsed.height || prev.height,
+          diagnosis: parsed.diagnosis || prev.diagnosis,
+          comorbidities: parsed.comorbidities || prev.comorbidities,
+          allergies: parsed.allergies || prev.allergies,
+          laterality: parsed.laterality || prev.laterality,
+          procedurePlanned: parsed.procedurePlanned || prev.procedurePlanned,
+          consultant: parsed.consultant || prev.consultant,
+          anaesthetist: parsed.anaesthetist || prev.anaesthetist,
+          ward: parsed.ward || prev.ward,
+          room: parsed.room || prev.room,
+          bed: parsed.bed || prev.bed,
+          insurance: parsed.insurance || prev.insurance,
+          mlc: parsed.mlc !== undefined ? parsed.mlc : prev.mlc,
+          emergency: parsed.emergency !== undefined ? parsed.emergency : prev.emergency,
+          asaGrade: parsed.asaGrade || prev.asaGrade,
+          vitals: {
+            ...prev.vitals,
+            bp: parsed.vitals?.bp || prev.vitals.bp,
+            pulse: parsed.vitals?.pulse || prev.vitals.pulse,
+            temp: parsed.vitals?.temp || prev.vitals.temp,
+            rr: parsed.vitals?.rr || prev.vitals.rr,
+            spo2: parsed.vitals?.spo2 || prev.vitals.spo2
+          },
+          investigations: {
+            ...prev.investigations,
+            hb: parsed.investigations?.hb || prev.investigations.hb,
+            wbc: parsed.investigations?.wbc || prev.investigations.wbc,
+            platelets: parsed.investigations?.platelets || prev.investigations.platelets,
+            creatinine: parsed.investigations?.creatinine || prev.investigations.creatinine,
+            ecg: parsed.investigations?.ecg || prev.investigations.ecg,
+            cxr: parsed.investigations?.cxr || prev.investigations.cxr
+          }
+        }));
+
+        confetti({
+          particleCount: 55,
+          spread: 50,
+          colors: ['#3b82f6', '#10b981', '#6366f1']
+        });
+        return;
+      } catch (err: any) {
+        console.error("Gemini text parsing failed, using offline regex parser:", err);
+        addLogMessage(`⚠ Gemini parsing failed: ${err.message || err}. Falling back to offline regex parser...`);
+      }
+    }
+
     setTimeout(() => {
       const parsed = parseHimsText(textToParse);
       
@@ -213,7 +277,6 @@ export const PatientRegistration: React.FC<PatientRegistrationProps> = ({ setAct
       setPasteLoading(false);
       setPasteComplete(true);
 
-      // Merge into form state
       setFormData(prev => ({
         ...prev,
         name: parsed.name || prev.name,
@@ -293,9 +356,144 @@ export const PatientRegistration: React.FC<PatientRegistrationProps> = ({ setAct
     }
   };
 
+  const generateHimsScreenshot = (himsType: string): string => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 600;
+    canvas.height = 420;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return '';
+
+    // Draw background
+    ctx.fillStyle = '#f8fafc'; // light gray-blue
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Draw borders
+    ctx.strokeStyle = '#cbd5e1';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(8, 8, canvas.width - 16, canvas.height - 16);
+
+    // Header bar
+    ctx.fillStyle = himsType === 'aas' ? '#1e3a8a' : himsType === 'epic' ? '#0d9488' : '#0f172a';
+    ctx.fillRect(10, 10, canvas.width - 20, 50);
+
+    // Header Text
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 16px sans-serif';
+    const headerTitle = himsType === 'aas' ? 'AAS MULTI-SPECIALITY HIMS' :
+                        himsType === 'epic' ? 'EPIC SYSTEMS CLINICAL SUMMARY' :
+                        himsType === 'cerner' ? 'CERNER POWERCHART FLOWSHEET' :
+                        himsType === 'allscripts' ? 'ALLSCRIPTS EHR RECORD' : 'GENERIC HIMS PATIENT SHEET';
+    ctx.fillText(headerTitle, 30, 42);
+
+    // Document type label
+    ctx.font = '10px sans-serif';
+    ctx.fillStyle = '#cbd5e1';
+    ctx.fillText('CONFIDENTIAL MEDICAL RECORD - MEDDOCS AI OCR DEMO', 300, 40);
+
+    // Body text
+    ctx.fillStyle = '#334155';
+    ctx.font = 'bold 13px sans-serif';
+
+    // Build values based on selected template
+    let lines: string[] = [];
+    if (himsType === 'aas') {
+      lines = [
+        'PATIENT REGISTRATION: Rajendra Damaji Dudhabade',
+        'UHID/ID: AAS672',
+        'Age: 46 Years | Gender: Male',
+        'Diagnosis: Adult hydrocele - N43.3 | Hemorrhoid - K64.9 | Fissure in ano - K60.2',
+        'Procedure Planned: HEMORRHOIDECTOMY | LATERAL INTERNAL SPHINCTEROTOMY | EVERSION OF HYDROCELE SAC',
+        'Vitals Flowsheet: BP 145/92 mmHg, Pulse 105 bpm, Temp 98.6 F, RR 18/min',
+        'Investigations: Hb 13.8 g/dL, Platelets 220000, Creatinine 0.9 mg/dL'
+      ];
+    } else if (himsType === 'epic') {
+      lines = [
+        'Patient Name: Vikas Kumar Rao',
+        'MRN/UHID: EPIC-883719',
+        'Age: 39 Years | Gender: Male',
+        'Diagnosis: Incarcerated Right Inguinal Hernia',
+        'Procedure Planned: Open Inguinal Hernioplasty (Lichtenstein Mesh Repair)',
+        'Vitals Flowsheet: BP 124/80 mmHg, Pulse 84 bpm, Temp 98.6 F, RR 18/min',
+        'Investigations: Hb 14.5 g/dL, Platelets 190000, Creatinine 1.0 mg/dL'
+      ];
+    } else if (himsType === 'cerner') {
+      lines = [
+        'Patient Name: Suresh Chandra Sen',
+        'UHID: CRN-773291',
+        'Age/Gender: 52 / Male',
+        'Diagnosis: Gallstone Pancreatitis / Cholelithiasis',
+        'Procedure Planned: Laparoscopic Cholecystectomy',
+        'Vitals Flowsheet: BP 132/88 mmHg, Pulse 76 bpm, Temp 99.0 F, RR 16/min',
+        'Investigations: Hb 12.8 g/dL, Platelets 210000, Creatinine 1.2 mg/dL'
+      ];
+    } else if (himsType === 'allscripts') {
+      lines = [
+        'Patient Name: Meera Deshpande',
+        'UHID: ALS-994321',
+        'Age: 31 Years | Gender: Female',
+        'Diagnosis: Acute Appendicitis (Suppurative)',
+        'Procedure Planned: Laparoscopic Appendicectomy',
+        'Vitals Flowsheet: BP 115/70 mmHg, Pulse 92 bpm, Temp 101.1 F, RR 20/min',
+        'Investigations: Hb 11.5 g/dL, Platelets 240000, Creatinine 0.8 mg/dL'
+      ];
+    } else {
+      lines = [
+        'Patient Name: Priya Rajan',
+        'UHID/ID: GEN-449102',
+        'Age: 45 Years | Gender: Female',
+        'Diagnosis: Uterine Fibroids (Symptomatic)',
+        'Procedure Planned: Total Laparoscopic Hysterectomy',
+        'Vitals Flowsheet: BP 118/78 mmHg, Pulse 72 bpm, Temp 98.2 F, RR 16/min',
+        'Investigations: Hb 12.1 g/dL, Platelets 250000, Creatinine 1.1 mg/dL'
+      ];
+    }
+
+    // Render lines onto canvas
+    let y = 100;
+    lines.forEach((line) => {
+      // Draw a bullet/dot
+      ctx.fillStyle = himsType === 'aas' ? '#2563eb' : himsType === 'epic' ? '#0d9488' : '#6366f1';
+      ctx.beginPath();
+      ctx.arc(35, y - 4, 3, 0, 2 * Math.PI);
+      ctx.fill();
+
+      // Split header from value for styling (bold labels)
+      const colonIdx = line.indexOf(':');
+      if (colonIdx !== -1) {
+        const label = line.substring(0, colonIdx + 1);
+        const val = line.substring(colonIdx + 1);
+        
+        ctx.fillStyle = '#1e293b';
+        ctx.font = 'bold 12px sans-serif';
+        ctx.fillText(label, 50, y);
+        
+        ctx.fillStyle = '#475569';
+        ctx.font = '12px monospace';
+        // Wrap text if too long
+        if (ctx.measureText(val).width > 480) {
+          ctx.font = '11px monospace';
+        }
+        ctx.fillText(val, 50 + ctx.measureText(label).width + 5, y);
+      } else {
+        ctx.fillStyle = '#1e293b';
+        ctx.font = 'bold 12px sans-serif';
+        ctx.fillText(line, 50, y);
+      }
+      y += 42;
+    });
+
+    // Draw footer
+    ctx.fillStyle = '#64748b';
+    ctx.font = 'italic 10px sans-serif';
+    ctx.fillText('* THIS TEXT WAS DYNAMICALLY RENDERED TO A CANVAS AND PARSED VIA LIVE OCR *', 40, canvas.height - 25);
+
+    return canvas.toDataURL('image/png');
+  };
+
   const loadSampleMockScreenshot = () => {
-    // Medical clinic mock image for demo
-    setScreenshotPreview('https://images.unsplash.com/photo-1576091160550-2173dba999ef?auto=format&fit=crop&w=400&h=250&q=80');
+    // Generate a beautiful, text-filled local HIMS sheet canvas
+    const base64Url = generateHimsScreenshot(selectedHimsType);
+    setScreenshotPreview(base64Url);
     setOcrComplete(false);
   };
 
@@ -396,97 +594,28 @@ export const PatientRegistration: React.FC<PatientRegistrationProps> = ({ setAct
     setOcrLoading(true);
     setOcrComplete(false);
 
-    let logsList: string[] = [];
-    if (selectedHimsType === 'aas') {
-      logsList = [
-        "Initializing AAS Multi-Speciality HIMS parser...",
-        "Validating clinical layout template ID (AAS-01-RX)...",
-        "Extracting patient demographics banner...",
-        "Identifying patient: Rajendra Damaji Dudhabade, 46 Yrs, Male...",
-        "Extracting UHID: AAS672...",
-        "Parsing Symptoms: Bleeding PR, Pain, Swelling...",
-        "Parsing Vitals: Pulse 105/min, BP 145/92 mmHg...",
-        "Extracting Diagnoses: Hydrocele (N43.3), Hemorrhoid (K64.9), Fissure (K60.2)...",
-        "Extracting planned procedures: HEMORRHOIDECTOMY, SPHINCTEROTOMY, EVERSION...",
-        "Finalizing parsed fields..."
-      ];
-    } else if (selectedHimsType === 'epic') {
-      logsList = [
-        "Initializing Epic-specific OCR parser...",
-        "Validating layout grid signature...",
-        "Extracting Epic Patient Banner block...",
-        "Identifying demographics: Vikas Kumar Rao, 39...",
-        "Reading Epic Clinical Flowsheets: BP 124/80, Pulse 84...",
-        "Extracting Diagnosis: 'Incarcerated Right Inguinal Hernia'...",
-        "Extracting Procedure: 'Open Inguinal Hernioplasty Lichtenstein Mesh Repair'...",
-        "Structuring fields from Epic template...",
-        "Finalizing parsed fields..."
-      ];
-    } else if (selectedHimsType === 'cerner') {
-      logsList = [
-        "Initializing Cerner PowerChart OCR parser...",
-        "Locating Patient Banner in Cerner grid...",
-        "Parsing Cerner Flowsheet Vitals...",
-        "Identifying demographics: Suresh Chandra Sen, 52...",
-        "Extracting Diagnosis: 'Gallstone Pancreatitis / Cholelithiasis'...",
-        "Extracting Procedure: 'Laparoscopic Cholecystectomy'...",
-        "Mapping Cerner custom fields...",
-        "Finalizing parsed fields..."
-      ];
-    } else if (selectedHimsType === 'allscripts') {
-      logsList = [
-        "Initializing Allscripts EHR template parser...",
-        "Extracting fields from Clinical Summary panel...",
-        "Identifying demographics: Meera Deshpande, 31...",
-        "Parsing Allscripts Vitals: BP 115/70, Pulse 92...",
-        "Extracting Diagnosis: 'Acute Appendicitis (Suppurative)'...",
-        "Extracting Procedure: 'Laparoscopic Appendicectomy'...",
-        "Mapping Allscripts custom allergy flags...",
-        "Finalizing parsed fields..."
-      ];
-    } else if (selectedHimsType === 'custom') {
-      logsList = [
-        "Initializing Custom Local HIMS parser...",
-        "Scanning custom hospital grid structure...",
-        "Identifying demographics: Amitesh Patel, 44...",
-        "Parsing Local HIMS Vitals: BP 120/75, Pulse 80...",
-        "Extracting Diagnosis: 'Bilateral Direct Inguinal Hernia'...",
-        "Extracting Procedure: 'Bilateral Laparoscopic Hernioplasty TAPP'...",
-        "Mapping custom variables...",
-        "Finalizing parsed fields..."
-      ];
-    } else {
-      logsList = [
-        "Initializing Generic Document OCR parser...",
-        "Detecting layout zones using bounding boxes...",
-        "Running Tesseract OCR text fallback...",
-        "Identifying demographics: Priya Rajan, 45...",
-        "Parsing generic vitals: BP 118/78, Pulse 72...",
-        "Extracting Diagnosis: 'Uterine Fibroids (Symptomatic)'...",
-        "Extracting Procedure: 'Total Laparoscopic Hysterectomy'...",
-        "Finalizing parsed fields..."
-      ];
-    }
-
-    setOcrLogs([
+    const logsList: string[] = [
       "Initializing AI-OCR Recognition Engine...",
       "Validating document format (HIMS Screenshot)...",
       `Selected Parser Layout: ${selectedHimsType.toUpperCase()} Template`,
-      ...logsList
-    ]);
+      "Waiting for pixel buffer transmission..."
+    ];
+    setOcrLogs([...logsList]);
 
-    // Animate logs print
-    let logIndex = 0;
-    const interval = setInterval(() => {
-      logIndex++;
-      if (logIndex >= logsList.length + 3) {
-        clearInterval(interval);
+    const addLogMessage = (msg: string) => {
+      logsList.push(msg);
+      setOcrLogs([...logsList]);
+    };
+
+    // Run real OCR or template fallback using the updated runOCR in AppContext
+    const extracted = await runOCR(
+      screenshotPreview || 'sample-hims',
+      selectedHimsType,
+      (progressMsg) => {
+        addLogMessage(progressMsg);
       }
-    }, 200);
-
-    const extracted = await runOCR(screenshotPreview || 'sample-hims', selectedHimsType);
+    );
     
-    clearInterval(interval);
     setOcrLoading(false);
     setOcrComplete(true);
 
@@ -494,8 +623,14 @@ export const PatientRegistration: React.FC<PatientRegistrationProps> = ({ setAct
     setFormData(prev => ({
       ...prev,
       ...extracted,
-      vitals: { ...prev.vitals, ...extracted.vitals },
-      investigations: { ...prev.investigations, ...extracted.investigations }
+      vitals: {
+        ...prev.vitals,
+        ...(extracted.vitals || {})
+      },
+      investigations: {
+        ...prev.investigations,
+        ...(extracted.investigations || {})
+      }
     }));
 
     confetti({
@@ -630,6 +765,28 @@ export const PatientRegistration: React.FC<PatientRegistrationProps> = ({ setAct
                   Clear
                 </button>
               )}
+            </div>
+
+            <div className="space-y-2 py-2 text-left bg-slate-50 dark:bg-slate-800/40 p-3 rounded-xl border border-slate-100 dark:border-slate-800/60 w-full">
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={!!currentHospital.consentToAiShare}
+                  onChange={(e) => {
+                    setCurrentHospital({
+                      ...currentHospital,
+                      consentToAiShare: e.target.checked
+                    });
+                  }}
+                  className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-[10px] leading-normal font-semibold text-slate-600 dark:text-slate-300">
+                  Patient consent obtained to securely process clinical screenshot with cloud AI.
+                </span>
+              </label>
+              <div className="text-[9px] text-slate-500 font-medium">
+                ✓ Offline Mode: Gemini AI is bypassed. Using local offline Tesseract parser.
+              </div>
             </div>
 
             <button

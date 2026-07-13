@@ -80,19 +80,19 @@ function App() {
           <div className="px-5 flex items-center justify-between">
             {isSidebarOpen ? (
               <div className="flex items-center gap-2">
-                <div className="p-1.5 rounded-lg bg-blue-600 text-white font-extrabold text-xs tracking-wider flex items-center gap-1 shadow-md">
+                <div className="p-2 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 text-white font-extrabold text-xs tracking-wider flex items-center gap-1 shadow-glow-blue">
                   <BrainCircuit size={15} /> MedDocs
                 </div>
                 <span className="font-extrabold text-sm tracking-tight text-slate-800 dark:text-white uppercase">AI Portal</span>
               </div>
             ) : (
-              <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold shadow">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 text-white flex items-center justify-center font-bold shadow-glow-blue">
                 M
               </div>
             )}
             <button 
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="p-1 text-slate-400 hover:text-slate-600 rounded hover:bg-slate-100 dark:hover:bg-slate-800"
+              className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
             >
               {isSidebarOpen ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
             </button>

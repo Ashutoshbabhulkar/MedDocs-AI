@@ -11,6 +11,7 @@ import {
   HelpCircle,
   Navigation
 } from 'lucide-react';
+import type { Patient } from '../types';
 
 interface VoiceChatAssistantProps {
   onClose: () => void;
@@ -31,7 +32,7 @@ export function VoiceChatAssistant({
   selectedPatientId,
   setSelectedPatientId
 }: VoiceChatAssistantProps) {
-  const { patients } = useApp();
+  const { patients, currentHospital, callGeminiAPI } = useApp();
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [speechText, setSpeechText] = useState('');
@@ -156,7 +157,7 @@ export function VoiceChatAssistant({
   };
 
   // Parse voice commands
-  const handleVoiceCommand = (command: string) => {
+  const handleVoiceCommand = async (command: string) => {
     const lower = command.toLowerCase().trim();
 
     // 1. Navigation Commands
@@ -299,6 +300,32 @@ export function VoiceChatAssistant({
     }
 
     // General fallback
+    if (false && currentHospital.geminiApiKey && currentHospital.consentToAiShare) {
+      try {
+        const activePat = patients.find(p => p.id === selectedPatientId);
+        let patientContext = "No patient is currently selected.";
+        if (activePat) {
+          const pat = activePat as Patient;
+          patientContext = `Active Patient Name: ${pat.name}, Age/Gender: ${pat.age}/${pat.gender}, Diagnosis: ${pat.diagnosis}, Planned Surgery: ${pat.procedurePlanned}.`;
+        }
+          
+        const prompt = `You are a clinical voice/chat assistant named MedDocs AI. You assist doctors in hospital administration and medical research.
+Answer the following user question/command. Keep your answer brief, clinical, and precise (maximum 2-3 sentences), since it will be converted to text-to-speech.
+
+Context of active patient (if relevant):
+${patientContext}
+
+User Query: "${command}"`;
+
+        const responseText = await callGeminiAPI(prompt);
+        addMessage('assistant', responseText.trim());
+        speakText(responseText.trim());
+        return;
+      } catch (err: any) {
+        console.error("Voice assistant Gemini call failed, using default response:", err);
+      }
+    }
+
     const fallbackResponse = `I heard: "${command}". I can assist with page navigation, patient selection, consent generation, or stay summarization. Say **"Help"** for details.`;
     addMessage('assistant', fallbackResponse);
     speakText(`I heard: ${command}. Try saying: Help, for a list of clinical commands.`);

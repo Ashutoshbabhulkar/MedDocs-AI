@@ -431,7 +431,7 @@ export const AIClinicalGenerator: React.FC<AIClinicalGeneratorProps> = ({
   setActiveTab,
   setSelectedDocId
 }) => {
-  const { currentHospital, patients, addDocument, languageMode, setLanguageMode, selectedSecondaryLang, setSelectedSecondaryLang, currentDoctor } = useApp();
+  const { currentHospital, patients, addDocument, languageMode, setLanguageMode, selectedSecondaryLang, setSelectedSecondaryLang, currentDoctor, callGeminiAPI } = useApp();
 
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [docType, setDocType] = useState<string>('Procedure Consent');
@@ -460,12 +460,112 @@ export const AIClinicalGenerator: React.FC<AIClinicalGeneratorProps> = ({
   };
 
 
-  const generateAIDocumentContent = () => {
-    if (!selectedPatient) return '';
+  const generateAIDocumentContent = async (typeOverride?: string): Promise<string> => {
+    const patientVal = selectedPatient;
+    if (!patientVal) return '';
+
+    {
+      const selectedPatient = patientVal;
+      const activeType = typeOverride || docType;
+
+    // Offline Mode: Enforce local templates (don't use AI per user request)
+    if (false) {
+      try {
+        const patientDetails = `
+Patient Name: ${selectedPatient.name}
+UHID: ${selectedPatient.uhid}
+Age/Gender: ${selectedPatient.age}/${selectedPatient.gender}
+Diagnosis: ${selectedPatient.diagnosis}
+Procedure Planned: ${selectedPatient.procedurePlanned}
+Laterality: ${selectedPatient.laterality}
+Vitals: BP ${selectedPatient.vitals.bp}, HR ${selectedPatient.vitals.pulse}, Temp ${selectedPatient.vitals.temp}, SpO2 ${selectedPatient.vitals.spo2}
+Investigations: Hb ${selectedPatient.investigations.hb}, Creatinine ${selectedPatient.investigations.creatinine}, Platelets ${selectedPatient.investigations.platelets}
+Comorbidities: ${selectedPatient.comorbidities || 'None'}
+Allergies: ${selectedPatient.allergies || 'None'}
+Consultant: ${selectedPatient.consultant}
+Anaesthetist: ${selectedPatient.anaesthetist}
+`;
+        
+        let docInstruction = "";
+        if (activeType === 'Procedure Consent') {
+          docInstruction = `Generate a comprehensive Informed Consent Form. It MUST include bilingual declarations (English and ${selectedSecondaryLang || 'Hindi'}) explaining:
+1. The nature of the procedure: ${selectedPatient.procedurePlanned}.
+2. Detailed clinical risks (minimum 5, including bleeding, infection, and procedure-specific complications like bile leak, nerve injury, or open conversion if applicable).
+3. Benefits and alternatives.
+4. An explicit consent declaration statement.
+5. Witness signature block and patient signature block.`;
+        } else if (activeType === 'Operation Notes') {
+          docInstruction = `Generate a detailed Operative Note including:
+1. Patient demographics.
+2. Anaesthesia details (General/Regional/Local).
+3. Surgeon and Assistant names.
+4. Intraoperative findings.
+5. Step-by-step description of the surgical procedure performed (tailored to ${selectedPatient.procedurePlanned}).
+6. Post-operative recovery status.`;
+        } else {
+          docInstruction = `Generate a Post-Operative Treatment Chart and Orders including:
+1. Immediate post-op monitoring instructions (vitals frequency, positioning).
+2. IV fluid regime.
+3. Pharmacotherapy: Antibiotics, analgesics, antiemetics with dosages and frequencies.
+4. Diet advice (NPO vs sips vs oral).
+5. Warning symptoms/criteria to notify the surgeon.`;
+        }
+
+        const prompt = `You are an expert clinical legal documentation engine. Write a highly professional clinical document of type "${activeType}" for the patient below. 
+Return the output formatted in clean, modern HTML with CSS styling suitable for printing. Do NOT include html tags, head tags, body tags, or markdown backticks. Return ONLY the inner HTML content wrapped in a styled container.
+
+Patient Context:
+${patientDetails}
+
+Branding:
+Hospital: ${currentHospital.name}
+Consultant: ${selectedPatient.consultant}
+
+Instructions:
+${docInstruction}
+
+Ensure the HTML uses clean Tailwind CSS compatible classes (like border, border-slate-200, rounded-xl, bg-slate-50, etc.) for visual excellence and readability. Do not output anything other than the raw HTML content.`;
+
+        const htmlOutput = await callGeminiAPI(prompt);
+        let cleanHtml = htmlOutput.trim();
+        if (cleanHtml.startsWith('```html')) {
+          cleanHtml = cleanHtml.substring(7);
+        }
+        if (cleanHtml.startsWith('```')) {
+          cleanHtml = cleanHtml.substring(3);
+        }
+        if (cleanHtml.endsWith('```')) {
+          cleanHtml = cleanHtml.substring(0, cleanHtml.length - 3);
+        }
+        return cleanHtml.trim();
+      } catch (geminiErr: any) {
+        console.error("Gemini clinical generator failed, using local templates:", geminiErr);
+      }
+    }
 
     const patientName = selectedPatient.name;
     const uhid = selectedPatient.uhid;
     const diagnosis = selectedPatient.diagnosis;
+    const primaryColor = currentHospital.colors.primary;
+
+    const headerHtml = currentHospital.headerImage 
+      ? `<div class="mb-4 text-center border-b pb-2"><img src="${currentHospital.headerImage}" alt="Hospital Header" class="max-h-24 w-full object-contain" /></div>`
+      : `<div class="border-b-2 pb-3 mb-4 flex justify-between items-start" style="border-color: ${primaryColor}">
+          <div>
+            <h1 class="text-base font-black uppercase text-slate-800" style="color: ${primaryColor}">${currentHospital.name}</h1>
+            <p class="text-[9px] text-slate-400 font-extrabold tracking-wider">NABH ACCREDITED & CLINICAL COMPLIANCE DEPT</p>
+          </div>
+          <div class="text-right">
+            <p class="text-xs font-black text-slate-800">${selectedPatient.consultant.toUpperCase().startsWith('DR.') ? selectedPatient.consultant.toUpperCase() : `DR. ${selectedPatient.consultant.toUpperCase()}`}</p>
+            <p class="text-[8px] text-slate-400 font-bold tracking-widest">SENIOR CONSULTANT SURGEON</p>
+          </div>
+        </div>`;
+
+    const footerHtml = currentHospital.footerImage
+      ? `<div class="mt-8 border-t pt-4 text-center"><img src="${currentHospital.footerImage}" alt="Hospital Footer" class="max-h-16 w-full object-contain" /></div>`
+      : `<div class="mt-8 border-t pt-2 text-center text-[9px] text-slate-400">
+          <p>${currentHospital.name} • ${currentHospital.address} • Ph: ${currentHospital.phone} • Email: ${currentHospital.email}</p>
+        </div>`;
     
     // Fallback if procedure is not mapped in PROCEDURE_CLINICAL_PROFILES
     let procName = selectedPatient.procedurePlanned;
@@ -498,19 +598,9 @@ export const AIClinicalGenerator: React.FC<AIClinicalGeneratorProps> = ({
 
       return `
         <div class="space-y-6 print-page text-left">
-          <!-- Hospital Header & Doctor Details -->
-          <div class="border-b-2 border-slate-900 pb-3 mb-4 flex justify-between items-start">
-            <div>
-              <h1 class="text-base font-black uppercase text-slate-800">${currentHospital.name}</h1>
-              <p class="text-[9px] text-slate-400 font-extrabold tracking-wider">NABH ACCREDITED & CLINICAL COMPLIANCE DEPT</p>
-            </div>
-            <div class="text-right">
-              <p class="text-xs font-black text-slate-800">${selectedPatient.consultant.toUpperCase().startsWith('DR.') ? selectedPatient.consultant.toUpperCase() : `DR. ${selectedPatient.consultant.toUpperCase()}`}</p>
-              <p class="text-[8px] text-slate-400 font-bold tracking-widest">SENIOR CONSULTANT SURGEON</p>
-            </div>
-          </div>
+          ${headerHtml}
 
-          <h2 class="text-center font-black text-xs uppercase tracking-wide text-slate-900 border-y py-1.5 mb-4">
+          <h2 class="text-center font-black text-xs uppercase tracking-wide border-y py-1.5 mb-4" style="color: ${primaryColor}; border-color: ${primaryColor}20">
             BILINGUAL INFORMED CONSENT / माहितीपूर्वक लेखी संमतीपत्र
           </h2>
 
@@ -657,6 +747,7 @@ export const AIClinicalGenerator: React.FC<AIClinicalGeneratorProps> = ({
               </div>
             </div>
           </div>
+          ${footerHtml}
         </div>
       `;
     }
@@ -664,7 +755,9 @@ export const AIClinicalGenerator: React.FC<AIClinicalGeneratorProps> = ({
     if (docType === 'Operation Notes') {
       return `
         <div class="space-y-6 print-page">
-          <h2 class="text-xl font-bold text-center border-b pb-3 text-slate-800">SURGICAL OPERATION RECORD & OPERATION NOTE</h2>
+          ${headerHtml}
+          
+          <h2 class="text-xl font-bold text-center border-b pb-3" style="color: ${primaryColor}; border-color: ${primaryColor}20">SURGICAL OPERATION RECORD & OPERATION NOTE</h2>
           
           <div class="grid grid-cols-2 gap-4 text-xs bg-slate-50 p-4 rounded-xl border border-slate-100">
             <div><strong>Patient Name:</strong> ${patientName}</div>
@@ -676,7 +769,7 @@ export const AIClinicalGenerator: React.FC<AIClinicalGeneratorProps> = ({
           </div>
 
           <div class="space-y-2">
-            <h4 class="text-xs font-bold text-slate-800 border-b pb-1">PRE-OPERATIVE CLINICAL PROFILE:</h4>
+            <h4 class="text-xs font-bold border-b pb-1" style="color: ${primaryColor}; border-color: ${primaryColor}10">PRE-OPERATIVE CLINICAL PROFILE:</h4>
             <p class="text-xs">
               Patient was admitted with history of ${selectedPatient.remarks || 'relevant symptoms'}. 
               Diagnosed with <strong>${selectedPatient.diagnosis}</strong>. Pre-operative vitals: BP ${selectedPatient.vitals.bp}, Pulse ${selectedPatient.vitals.pulse}. 
@@ -685,17 +778,18 @@ export const AIClinicalGenerator: React.FC<AIClinicalGeneratorProps> = ({
           </div>
 
           <div class="space-y-2">
-            <h4 class="text-xs font-bold text-slate-800 border-b pb-1">OPERATIVE TECHNIQUE & FINDINGS:</h4>
+            <h4 class="text-xs font-bold border-b pb-1" style="color: ${primaryColor}; border-color: ${primaryColor}10">OPERATIVE TECHNIQUE & FINDINGS:</h4>
             <ol class="list-decimal pl-5 text-xs space-y-1.5">
               ${clinicalProfile.operativeSteps.map(step => `<li>${step}</li>`).join('')}
             </ol>
           </div>
 
-          <div class="grid grid-cols-3 gap-2 text-xs pt-4">
+          <div class="grid grid-cols-3 gap-2 text-xs pt-4 border-t border-slate-100">
             <div><strong>Blood Loss:</strong> Minimal (&lt;50 ml)</div>
             <div><strong>Specimen Sent:</strong> Gallbladder / Appendix tissue for Histopathology</div>
             <div><strong>Drainage Tube:</strong> No drain placed</div>
           </div>
+          ${footerHtml}
         </div>
       `;
     }
@@ -703,7 +797,9 @@ export const AIClinicalGenerator: React.FC<AIClinicalGeneratorProps> = ({
     if (docType === 'Post-op Orders') {
       return `
         <div class="space-y-6 print-page">
-          <h2 class="text-xl font-bold text-center border-b pb-3 text-slate-800">POST-OPERATIVE MONITORING & PHARMACY ORDERS</h2>
+          ${headerHtml}
+          
+          <h2 class="text-xl font-bold text-center border-b pb-3" style="color: ${primaryColor}; border-color: ${primaryColor}20">POST-OPERATIVE MONITORING & PHARMACY ORDERS</h2>
           
           <div class="grid grid-cols-2 gap-4 text-xs bg-slate-50 p-4 rounded-xl border border-slate-100">
             <div><strong>Patient Name:</strong> ${patientName}</div>
@@ -714,24 +810,26 @@ export const AIClinicalGenerator: React.FC<AIClinicalGeneratorProps> = ({
 
           <div class="space-y-4">
             <div>
-              <h4 class="text-xs font-bold text-slate-800 border-b pb-1">NURSING PROTOCOLS:</h4>
+              <h4 class="text-xs font-bold border-b pb-1" style="color: ${primaryColor}; border-color: ${primaryColor}10">NURSING PROTOCOLS:</h4>
               <ul class="list-disc pl-5 text-xs space-y-1.5 mt-2">
                 ${clinicalProfile.postOpOrders.slice(0, 3).map(o => `<li>${o}</li>`).join('')}
               </ul>
             </div>
             
             <div>
-              <h4 class="text-xs font-bold text-slate-800 border-b pb-1">MEDICATION ORDERS:</h4>
+              <h4 class="text-xs font-bold border-b pb-1" style="color: ${primaryColor}; border-color: ${primaryColor}10">MEDICATION ORDERS:</h4>
               <ul class="list-disc pl-5 text-xs space-y-1.5 mt-2">
                 ${clinicalProfile.postOpOrders.slice(3).map(o => `<li>${o}</li>`).join('')}
               </ul>
             </div>
           </div>
+          ${footerHtml}
         </div>
       `;
     }
 
     return '';
+    }
   };
 
   const handleGenerate = async () => {
@@ -741,7 +839,7 @@ export const AIClinicalGenerator: React.FC<AIClinicalGeneratorProps> = ({
     // Simulate complex AI reasoning time
     await new Promise(resolve => setTimeout(resolve, 2000));
     
-    const htmlContent = generateAIDocumentContent();
+    const htmlContent = await generateAIDocumentContent();
     const doc = addDocument({
       patientId: selectedPatient.id,
       patientName: selectedPatient.name,
@@ -779,7 +877,7 @@ export const AIClinicalGenerator: React.FC<AIClinicalGeneratorProps> = ({
     
     // 1. Consent
     setDocType('Procedure Consent');
-    const cContent = generateAIDocumentContent();
+    const cContent = await generateAIDocumentContent('Procedure Consent');
     const cDoc = addDocument({
       patientId: selectedPatient.id,
       patientName: selectedPatient.name,
@@ -799,7 +897,7 @@ export const AIClinicalGenerator: React.FC<AIClinicalGeneratorProps> = ({
 
     // 2. Operative Note
     setDocType('Operation Notes');
-    const oContent = generateAIDocumentContent();
+    const oContent = await generateAIDocumentContent('Operation Notes');
     addDocument({
       patientId: selectedPatient.id,
       patientName: selectedPatient.name,
@@ -819,7 +917,7 @@ export const AIClinicalGenerator: React.FC<AIClinicalGeneratorProps> = ({
 
     // 3. Post Op Orders
     setDocType('Post-op Orders');
-    const pContent = generateAIDocumentContent();
+    const pContent = await generateAIDocumentContent('Post-op Orders');
     addDocument({
       patientId: selectedPatient.id,
       patientName: selectedPatient.name,
@@ -1035,17 +1133,22 @@ export const AIClinicalGenerator: React.FC<AIClinicalGeneratorProps> = ({
 
                   <button
                     onClick={() => window.print()}
-                    className="p-1 text-slate-500 hover:text-slate-700"
-                    title="Print Document"
+                    className="bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 text-[10px] font-bold px-2.5 py-1 rounded flex items-center gap-1.5 transition no-print"
+                    title="Print Document or Save as PDF"
                   >
-                    <Printer size={16} />
+                    <Printer size={12} /> Print & Download PDF
                   </button>
                 </div>
               )}
             </div>
 
             {/* Editable Content Frame */}
-            <div className="p-6 flex-1 overflow-y-auto max-h-[500px]">
+            <div className="p-6 flex-1 overflow-y-auto max-h-[500px] printable-area">
+              {editMode && (
+                <div className="mb-3 p-2 bg-blue-50 border border-blue-100 text-blue-800 text-[10px] rounded-lg font-medium flex items-center gap-1.5 no-print">
+                  <span>💡 <strong>Rich-Text Mode:</strong> Click directly on any text, table cell, or header below to edit. Click 'Save Changes' when finished.</span>
+                </div>
+              )}
               {isGenerating ? (
                 <div className="flex flex-col items-center justify-center py-20 space-y-4">
                   <div className="relative">
@@ -1059,10 +1162,12 @@ export const AIClinicalGenerator: React.FC<AIClinicalGeneratorProps> = ({
                 </div>
               ) : generatedDoc ? (
                 editMode ? (
-                  <textarea
-                    value={editableContent}
-                    onChange={(e) => setEditableContent(e.target.value)}
-                    className="w-full h-full min-h-[350px] border border-slate-200 rounded-xl p-4 text-xs font-mono outline-none focus:ring-2 focus:ring-blue-100"
+                  <div 
+                    contentEditable
+                    suppressContentEditableWarning
+                    onBlur={(e) => setEditableContent(e.currentTarget.innerHTML)}
+                    className="prose prose-sm max-w-none text-slate-700 leading-relaxed outline-none border-2 border-dashed border-blue-300 p-4 rounded-xl bg-slate-50/30 focus:bg-white transition-all min-h-[350px]"
+                    dangerouslySetInnerHTML={{ __html: editableContent }}
                   />
                 ) : (
                   <div 

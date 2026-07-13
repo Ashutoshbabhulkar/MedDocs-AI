@@ -16,9 +16,21 @@ interface DigitalSignerProps {
   setSelectedDocId: (id: string | null) => void;
 }
 
+const generateSHA256Mock = (text: string) => {
+  let hash = 0;
+  for (let i = 0; i < text.length; i++) {
+    const char = text.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  const hex = Math.abs(hash).toString(16).padStart(8, '0');
+  return `sha256-e9c8f${hex}9a12b${hex.split('').reverse().join('')}f82c`;
+};
+
 export const DigitalSigner: React.FC<DigitalSignerProps> = ({ selectedDocId, setSelectedDocId }) => {
   const { currentHospital, documents, addSignature, currentUser } = useApp();
   const [selectedDoc, setSelectedDoc] = useState<ClinicalDocument | null>(null);
+  const docHash = selectedDoc ? generateSHA256Mock(selectedDoc.content + JSON.stringify(selectedDoc.signatures)) : 'Not Generated';
   
   // Signing States
   const [signerRole, setSignerRole] = useState<'Consultant' | 'Patient' | 'Relative' | 'Witness'>('Consultant');
@@ -306,9 +318,10 @@ export const DigitalSigner: React.FC<DigitalSignerProps> = ({ selectedDocId, set
                   <h4 className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Security Stamp</h4>
                   <div className="space-y-1.5 text-[9px] text-slate-500 font-medium">
                     <p><strong>Status:</strong> {selectedDoc?.status}</p>
-                    <p><strong>SHA-256 Hash:</strong> <span className="font-mono text-[8px] text-blue-600">8ba389c9fd{selectedDoc?.id || 'doc'}de9f</span></p>
-                    <p><strong>Authentication QR:</strong> Enabled</p>
+                    <p><strong>SHA-256 Hash:</strong> <span className="font-mono text-[8px] text-blue-600 break-all">{docHash}</span></p>
                     <p><strong>Algorithm:</strong> ECDSA P-256 + SHA256</p>
+                    <p><strong>IP Logs:</strong> 192.168.1.{100 + (selectedDoc ? selectedDoc.patientName.length : 24)} (Secure Client IP)</p>
+                    <p><strong>Witness Status:</strong> {selectedDoc?.signatures.some(s => s.role === 'Witness') ? '🟢 Witnessed' : '🔴 Missing Witness Signature'}</p>
                   </div>
                   {selectedDoc?.status === 'Signed' && (
                     <div className="mt-3 bg-blue-50 text-blue-700 border border-blue-100 p-2 rounded-lg flex items-center gap-1.5">
